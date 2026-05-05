@@ -16,6 +16,7 @@ A 股短线盯盘、盘前计划、盘中快照、收盘复盘、持仓账本与
 | 09:26 开盘操作表 | `scripts/ashare_opening_action_table.py` | 根据竞价、开盘、大盘、板块和持仓/候选股生成可执行买卖计划。 |
 | 持仓账本 | `scripts/ashare_ledger_lib.py`, `scripts/ashare_ledger_cli.py`, `scripts/ashare_ledger_daily_report.py` | 记录每日买卖、计算持仓、生成 15:05 持仓盈亏表。 |
 | 策略评分/跟踪 | `scripts/ashare_strategy_engine.py`, `scripts/ashare_strategy_tracker.py` | 候选股分层、跟踪入选后表现、维护 `strategy_scoreboard.db`。 |
+| 短线增强数据层 | `scripts/ashare_shortline_schema.py` | 创建独立 `shortline/shortline_signal.db` schema，用于后续涨停生态、题材、情绪锚点、新高、事件、龙虎榜等 shadow 数据；不抓取真实数据、不接入生产报告。 |
 | 数据工具 | `scripts/ashare_data_utils.py` | 行情源降级、缓存、日期校验、代码标准化等公共工具。 |
 
 ## 目录结构
@@ -36,7 +37,8 @@ ashare_system/
 │   ├── ashare_position_watch_analysis.py
 │   ├── ashare_postclose_capture.py
 │   ├── ashare_strategy_engine.py
-│   └── ashare_strategy_tracker.py
+│   ├── ashare_strategy_tracker.py
+│   └── ashare_shortline_schema.py
 ├── tests/
 │   └── test_*.py
 └── skills/
@@ -81,6 +83,8 @@ pip install akshare pandas requests numpy easyquotation pytdx tushare pytest
 │   └── ashare_ledger.db
 ├── strategy/
 │   └── strategy_scoreboard.db
+├── shortline/
+│   └── shortline_signal.db
 └── YYYY-MM-DD/
     ├── snapshots.jsonl
     ├── latest-summary.json
@@ -131,6 +135,31 @@ export ASHARE_CACHE_ROOT=/tmp/ashare-cache
 ### `strategy/strategy_scoreboard.db`
 
 由策略评分/候选股跟踪模块维护，记录候选股入选、分层、盈亏比、后续 1/3/5/20 日表现等。
+
+### `shortline/shortline_signal.db`
+
+由 `ashare_shortline_schema.py` 初始化的短线增强 shadow 数据库。阶段 1 只创建 schema，不抓取真实数据、不生成报告、不接入 Cron/飞书、不修改 `ashare_monitor.db` 或 `strategy_scoreboard.db`。
+
+当前规划表包括：
+
+| 表 | 内容 |
+|---|---|
+| `limitup_daily` | 涨停生态：涨停时间、开板次数、封单、连板、炸板/回封标记、原因与原始数据。 |
+| `theme_daily` | 题材日度状态：题材分数、涨停/炸板数量、龙头/中军/负反馈锚点。 |
+| `theme_stock_map` | 题材与股票映射：角色、证据、置信度与来源。 |
+| `emotion_anchors` | 情绪锚点：空间板、核心龙头、趋势中军、负反馈等。 |
+| `new_high_daily` | 新高数据：20/60/100 日相对位置、题材/板块归属。 |
+| `event_calendar` | 事件日历：公告、业绩、政策、会议等事件与预期影响。 |
+| `lhb_daily` | 龙虎榜摘要：净买入、机构净买、席位 JSON、游资/量化标记与解读。 |
+
+初始化与查看：
+
+```bash
+python scripts/ashare_shortline_schema.py init
+python scripts/ashare_shortline_schema.py show-tables
+```
+
+可通过 `--db-path /tmp/shortline_signal.db` 指向临时库，便于测试与回滚。
 
 ## 报告说明
 
