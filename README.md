@@ -348,6 +348,59 @@ strategy/strategy_scoreboard.db
 | 17:40 | 持仓/候选分析 | `ashare_position_watch_analysis.py` |
 | 盘后 | 候选股跟踪维护 | `ashare_strategy_tracker.py` |
 
+## Cron 自动化任务配置
+
+本系统通过 Hermes cron 实现全自动化运行，所有任务均设定为交易日元重复执行。以下是当前已配置的任务清单：
+
+| Job ID | 任务名称 | 调度规则 | 交付方式 | 关联脚本 |
+|---|---|---|---|---|
+| `148743328343` | ashare-close-summary-feishu | `0 17 * * 1-5`（每个交易日 17:00） | 飞书 DM | `ashare_close_summary.py` |
+| `5ec9dd7c6fdb` | ashare-position-watch-analysis | `30 17 * * 1-5`（每个交易日 17:30） | 飞书 DM | `ashare_position_watch_analysis.py` |
+| `d90ce37282ec` | ashare-opening-brief-feishu | `0 9 * * 1-5`（每个交易日 09:00） | 飞书 DM | `ashare_opening_brief.py` |
+| `6c91e3fd8797` | ashare-opening-action-table | `26 9 * * 1-5`（每个交易日 09:26） | 飞书 DM | `ashare_opening_action_table.py` |
+| `431e87e2c088` | ashare-strategy-tracker-local | `50 16 * * 1-5`（每个交易日 16:50） | 本地落盘 | `ashare_strategy_tracker.py` |
+| `2b38f8b7f143` | ashare-sector-multi-day | `5 17 * * 1-5`（每个交易日 17:05） | 本地落盘 | `ashare_sector_multi_day.py` |
+| `3a248b37c2db` | ashare-ledger-daily-pnl-feishu | `5 15 * * 1-5`（每个交易日 15:05） | 飞书 DM | `ashare_ledger_daily_report.py` |
+
+### Cron 任务详情
+
+**盘中静默采集（无 agent 交互，no_agent 模式）：**
+
+系统盘中每分钟通过后台脚本持续采集行情数据，不向飞书推送任何消息，仅写入本地数据库和快照文件：
+
+```text
+*/1 9-15 * * 1-5  /home/admin/.hermes/hermes-agent/venv/bin/python3 /home/admin/.hermes/scripts/ashare_background_monitor.py
+```
+
+> 注意：盘中静默采集由系统 cron 或 Hermes 后台调度执行，不在本仓库的 Hermes cron 管理范围内。
+
+**各任务职责说明：**
+
+- **ashare-opening-brief-feishu（09:00）**：整合 TrendRadar 输出、前日复盘、新闻与候选股，生成盘前简报，明确当天市场环境与操作意向（买入/卖出/空仓等）及建议仓位。
+- **ashare-opening-action-table（09:26）**：读取持仓/候选股竞价与开盘数据、大盘与板块情况，给出具体买卖点、仓位比例、分步动作（开盘前 5 分钟/开盘后 15 分钟）。
+- **ashare-ledger-daily-pnl-feishu（15:05）**：生成当日持仓盈亏表，通过飞书发送；由用户通过飞书输入当日操作（买入/卖出/止损），系统自动入账。
+- **ashare-sector-multi-day（17:05）**：本地多日板块联动分析，写入本地文件，不推飞书。
+- **ashare-strategy-tracker-local（16:50）**：候选股跟踪维护，评估入选后表现，写入 `strategy_scoreboard.db`。
+- **ashare-close-summary-feishu（17:00）**：生成收盘复盘摘要（指数、板块梯队、候选股、风控），通过飞书发送。
+- **ashare-position-watch-analysis（17:30）**：持仓股/候选股的今日走势分析、通道判断、支撑/压力位、盈亏比与明日策略，通过飞书发送。
+
+### 管理命令
+
+```bash
+# 查看所有任务
+hermes cron list
+
+# 运行指定任务（手动触发）
+hermes cron run <job_id>
+
+# 暂停/恢复任务
+hermes cron pause <job_id>
+hermes cron resume <job_id>
+
+# 删除任务
+hermes cron remove <job_id>
+```
+
 ## 测试
 
 运行全部测试：
